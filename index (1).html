@@ -1,270 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>KSP Case Tracker</title>
+  <style>
+    body { font-family: Arial; margin: 20px; }
+    input, button { margin: 4px; padding: 6px; }
+    .case { border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
+  </style>
+</head>
+
+<body>
+
+<h2>KSP Case Tracker</h2>
+
+<button onclick="addCase()">Add Case</button>
+<button onclick="saveAll()">Save All</button>
+
+<div id="cases"></div>
+
+<script>
 const GAS_URL = "https://script.google.com/macros/s/AKfycbwCNtCrhv4-7TTpJsz-bC3ol3efs1FAorGkVgaI0V21DvNk0Lrl-jaHXWm6HdplbOV6/exec";
 
-async function api(action, payload = {}) {
-  const res = await fetch(GAS_URL, {
+let cases = [];
+
+// ─────────────────────────────
+// LOAD
+// ─────────────────────────────
+function loadCases() {
+  fetch(GAS_URL)
+    .then(r => r.json())
+    .then(data => {
+      cases = data.cases || [];
+      render();
+    });
+}
+
+// ─────────────────────────────
+// RENDER
+// ─────────────────────────────
+function render() {
+  const div = document.getElementById("cases");
+  div.innerHTML = "";
+
+  cases.forEach((c, i) => {
+    div.innerHTML += `
+      <div class="case">
+        <input value="${c.caseNum || ""}" onchange="cases[${i}].caseNum=this.value" placeholder="Case #">
+        <input value="${c.title || ""}" onchange="cases[${i}].title=this.value" placeholder="Title">
+        <input value="${c.victim || ""}" onchange="cases[${i}].victim=this.value" placeholder="Victim">
+        <button onclick="deleteCase(${i})">Delete</button>
+      </div>
+    `;
+  });
+}
+
+// ─────────────────────────────
+// ADD CASE
+// ─────────────────────────────
+function addCase() {
+  cases.push({
+    id: crypto.randomUUID(),
+    caseNum: "",
+    title: "",
+    victim: "",
+    opened: new Date().toISOString().split("T")[0],
+    closed: false
+  });
+
+  render();
+}
+
+// ─────────────────────────────
+// DELETE CASE (local only)
+// ─────────────────────────────
+function deleteCase(index) {
+  cases.splice(index, 1);
+  render();
+}
+
+// ─────────────────────────────
+// SAVE ALL
+// ─────────────────────────────
+function saveAll() {
+  fetch(GAS_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ action, payload })
+    body: JSON.stringify({
+      cases: cases
+    })
+  })
+  .then(r => r.json())
+  .then(res => {
+    console.log("Saved:", res);
+    loadCases();
   });
-
-  return await res.json();
-}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>KSP Case Tracker</title>
-
-<style>
-body {
-  font-family: Arial, sans-serif;
-  background: #111827;
-  color: white;
-  margin: 0;
-  padding: 20px;
 }
 
-h1 {
-  margin-bottom: 20px;
-}
-
-.card {
-  background: #1f2937;
-  border-radius: 10px;
-  padding: 15px;
-  margin-bottom: 15px;
-}
-
-input,
-textarea,
-select,
-button {
-  width: 100%;
-  margin-top: 8px;
-  margin-bottom: 15px;
-  padding: 10px;
-  border-radius: 6px;
-  border: none;
-  box-sizing: border-box;
-}
-
-button {
-  background: #2563eb;
-  color: white;
-  cursor: pointer;
-}
-
-button:hover {
-  opacity: 0.9;
-}
-
-.row {
-  display: flex;
-  gap: 10px;
-}
-
-.row > div {
-  flex: 1;
-}
-
-.small-btn {
-  width: auto;
-  display: inline-block;
-  margin-right: 10px;
-}
-</style>
-</head>
-<body>
-
-<h1>KSP Case Tracker</h1>
-
-<div class="card">
-  <h2>Add / Edit Case</h2>
-
-  <input id="caseNum" placeholder="Case Number">
-  <input id="title" placeholder="Case Title">
-
-  <div class="row">
-    <div>
-      <label>Opened Date</label>
-      <input id="opened" type="date">
-    </div>
-
-    <div>
-      <label>Last Contact</label>
-      <input id="lastContact" type="date">
-    </div>
-  </div>
-
-  <input id="victim" placeholder="Victim Name">
-  <input id="suspect" placeholder="Suspect Name">
-
-  <select id="classification">
-    <option value="felony">Felony</option>
-    <option value="misdemeanor">Misdemeanor</option>
-  </select>
-
-  <select id="type">
-    <option value="standard">Standard</option>
-    <option value="sa">Sexual Assault</option>
-  </select>
-
-  <textarea id="notes" placeholder="Notes"></textarea>
-
-  <button onclick="saveCase()">Save Case</button>
-</div>
-
-<div>
-  <h2>Cases</h2>
-  <div id="cases"></div>
-</div>
-
-<script>
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbwCNtCrhv4-7TTpJsz-bC3ol3efs1FAorGkVgaI0V21DvNk0Lrl-jaHXWm6HdplbOV6/exec';
-
-let cases = [];
-let editId = null;
-
-async function loadCases() {
-  try {
-    const res = await fetch(`${GAS_URL}?action=getCases`);
-    cases = await res.json();
-    renderCases();
-  } catch (err) {
-    console.error(err);
-    alert('Failed to load cases');
-  }
-}
-
-function renderCases() {
-  const container = document.getElementById('cases');
-
-  if (!cases.length) {
-    container.innerHTML = '<div class="card">No cases found.</div>';
-    return;
-  }
-
-  container.innerHTML = cases.map(c => `
-    <div class="card">
-      <h3>${c.caseNum || 'No Case Number'}</h3>
-
-      <p><strong>Title:</strong> ${c.title || ''}</p>
-      <p><strong>Victim:</strong> ${c.victim || ''}</p>
-      <p><strong>Suspect:</strong> ${c.suspect || ''}</p>
-      <p><strong>Classification:</strong> ${c.classification || ''}</p>
-      <p><strong>Type:</strong> ${c.type || ''}</p>
-      <p><strong>Opened:</strong> ${c.opened || ''}</p>
-      <p><strong>Last Contact:</strong> ${c.lastContact || ''}</p>
-      <p><strong>Notes:</strong> ${c.notes || ''}</p>
-
-      <button class="small-btn" onclick="editCase('${c.id}')">Edit</button>
-      <button class="small-btn" onclick="deleteCase('${c.id}')">Delete</button>
-    </div>
-  `).join('');
-}
-
-async function saveCase() {
-  const data = {
-    id: editId,
-    caseNum: document.getElementById('caseNum').value.trim(),
-    title: document.getElementById('title').value.trim(),
-    opened: document.getElementById('opened').value,
-    lastContact: document.getElementById('lastContact').value,
-    victim: document.getElementById('victim').value.trim(),
-    suspect: document.getElementById('suspect').value.trim(),
-    classification: document.getElementById('classification').value,
-    type: document.getElementById('type').value,
-    notes: document.getElementById('notes').value.trim()
-  };
-
-  if (!data.caseNum || !data.title) {
-    alert('Case Number and Title are required');
-    return;
-  }
-
-  try {
-    await fetch(GAS_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        action: 'saveCase',
-        data
-      })
-    });
-
-    clearForm();
-    await loadCases();
-
-  } catch (err) {
-    console.error(err);
-    alert('Failed to save case');
-  }
-}
-
-function editCase(id) {
-  const c = cases.find(x => x.id === id);
-  if (!c) return;
-
-  editId = c.id;
-
-  document.getElementById('caseNum').value = c.caseNum || '';
-  document.getElementById('title').value = c.title || '';
-  document.getElementById('opened').value = c.opened || '';
-  document.getElementById('lastContact').value = c.lastContact || '';
-  document.getElementById('victim').value = c.victim || '';
-  document.getElementById('suspect').value = c.suspect || '';
-  document.getElementById('classification').value = c.classification || 'felony';
-  document.getElementById('type').value = c.type || 'standard';
-  document.getElementById('notes').value = c.notes || '';
-
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-async function deleteCase(id) {
-  if (!confirm('Delete this case?')) return;
-
-  try {
-    await fetch(GAS_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        action: 'deleteCase',
-        id
-      })
-    });
-
-    await loadCases();
-
-  } catch (err) {
-    console.error(err);
-    alert('Failed to delete case');
-  }
-}
-
-function clearForm() {
-  editId = null;
-
-  document.getElementById('caseNum').value = '';
-  document.getElementById('title').value = '';
-  document.getElementById('opened').value = '';
-  document.getElementById('lastContact').value = '';
-  document.getElementById('victim').value = '';
-  document.getElementById('suspect').value = '';
-  document.getElementById('classification').value = 'felony';
-  document.getElementById('type').value = 'standard';
-  document.getElementById('notes').value = '';
-}
-
+// initial load
 loadCases();
 </script>
 
 </body>
-</ht
-```
+</html>
