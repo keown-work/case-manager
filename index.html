@@ -1,106 +1,149 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <title>KSP Case Tracker</title>
-  <style>
-    body { font-family: Arial; margin: 20px; }
-    input, button { margin: 4px; padding: 6px; }
-    .case { border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
-  </style>
+<meta charset="UTF-8">
+<title>Case Tracker</title>
+
+<style>
+body { font-family: Arial; margin: 20px; }
+.case { padding: 10px; margin: 10px 0; border: 1px solid #ccc; }
+.red { background: #ffcccc; }
+.yellow { background: #fff3b0; }
+.green { background: #e6ffe6; }
+</style>
 </head>
 
 <body>
 
-<h2>KSP Case Tracker</h2>
+<h2>Case Tracker</h2>
+
+<input id="url" placeholder="https://script.google.com/macros/s/AKfycbwCNtCrhv4-7TTpJsz-bC3ol3efs1FAorGkVgaI0V21DvNk0Lrl-jaHXWm6HdplbOV6/exec">
+<button onclick="setUrl()">Save URL</button>
 
 <button onclick="addCase()">Add Case</button>
-<button onclick="saveAll()">Save All</button>
+<button onclick="sync()">Sync</button>
 
-<div id="cases"></div>
+<div id="list"></div>
 
 <script>
-const GAS_URL = "https://script.google.com/macros/s/AKfycbwCNtCrhv4-7TTpJsz-bC3ol3efs1FAorGkVgaI0V21DvNk0Lrl-jaHXWm6HdplbOV6/exec";
 
+let GAS_URL = localStorage.getItem("gas_url");
 let cases = [];
 
-// ─────────────────────────────
-// LOAD
-// ─────────────────────────────
-function loadCases() {
+if (GAS_URL) load();
+
+function setUrl() {
+  GAS_URL = document.getElementById("url").value;
+  localStorage.setItem("gas_url", GAS_URL);
+  load();
+}
+
+function load() {
   fetch(GAS_URL)
     .then(r => r.json())
-    .then(data => {
-      cases = data.cases || [];
+    .then(d => {
+      cases = d.cases || [];
       render();
     });
 }
 
-// ─────────────────────────────
-// RENDER
-// ─────────────────────────────
-function render() {
-  const div = document.getElementById("cases");
-  div.innerHTML = "";
-
-  cases.forEach((c, i) => {
-    div.innerHTML += `
-      <div class="case">
-        <input value="${c.caseNum || ""}" onchange="cases[${i}].caseNum=this.value" placeholder="Case #">
-        <input value="${c.title || ""}" onchange="cases[${i}].title=this.value" placeholder="Title">
-        <input value="${c.victim || ""}" onchange="cases[${i}].victim=this.value" placeholder="Victim">
-        <button onclick="deleteCase(${i})">Delete</button>
-      </div>
-    `;
-  });
+function sync() {
+  fetch(GAS_URL, {
+    method: "POST",
+    body: JSON.stringify({ cases }),
+    headers: { "Content-Type": "application/json" }
+  }).then(load);
 }
 
-// ─────────────────────────────
-// ADD CASE
-// ─────────────────────────────
 function addCase() {
   cases.push({
     id: crypto.randomUUID(),
     caseNum: "",
     title: "",
     victim: "",
+    suspect: "",
     opened: new Date().toISOString().split("T")[0],
+    lastContact: "",
+    kyibrsTransmit: "",
+    kyibrsAccepted: "",
+    safeLab: "",
     closed: false
   });
 
   render();
 }
 
-// ─────────────────────────────
-// DELETE CASE (local only)
-// ─────────────────────────────
-function deleteCase(index) {
-  cases.splice(index, 1);
-  render();
+// ───────────── RULE ENGINE ─────────────
+
+function daysSince(date) {
+  if (!date) return 9999;
+  return Math.floor((new Date() - new Date(date)) / 86400000);
 }
 
-// ─────────────────────────────
-// SAVE ALL
-// ─────────────────────────────
-function saveAll() {
-  fetch(GAS_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      cases: cases
-    })
-  })
-  .then(r => r.json())
-  .then(res => {
-    console.log("Saved:", res);
-    loadCases();
+function getColor(c) {
+  const d = daysSince(c.lastContact);
+
+  if (d >= 30) return "red";
+  if (d >= 20) return "yellow";
+  return "green";
+}
+
+function canClose(c) {
+  const d = daysSince(c.opened);
+
+  if (c.classification === "felony") return d >= 180;
+  return d >= 90;
+}
+
+// ───────────── RENDER ─────────────
+
+function render() {
+  const div = document.getElementById("list");
+  div.innerHTML = "";
+
+  cases.forEach((c, i) => {
+
+    const color = getColor(c);
+    const closeLocked = !canClose(c);
+
+    div.innerHTML += `
+      <div class="case ${color}">
+        <input value="${c.caseNum}" onchange="cases[${i}].caseNum=this.value">
+        <input value="${c.title}" onchange="cases[${i}].title=this.value">
+        <input value="${c.victim}" onchange="cases[${i}].victim=this.value">
+
+        <br>
+
+        Last Contact:
+        <input type="date" value="${c.lastContact || ''}"
+          onchange="cases[${i}].lastContact=this.value">
+
+        KYIBRS Transmit:
+        <input type="date" value="${c.kyibrsTransmit || ''}"
+          onchange="cases[${i}].kyibrsTransmit=this.value">
+
+        KYIBRS Accepted:
+        <input type="date" value="${c.kyibrsAccepted || ''}"
+          onchange="cases[${i}].kyibrsAccepted=this.value">
+
+        SAFE Lab:
+        <input type="date" value="${c.safeLab || ''}"
+          onchange="cases[${i}].safeLab=this.value">
+
+        <br>
+
+        <button onclick="cases.splice(${i},1);render()">Delete</button>
+
+        <button ${closeLocked ? "disabled" : ""}
+          onclick="cases[${i}].closed=true;render()">
+          Close
+        </button>
+
+      </div>
+    `;
   });
 }
 
-// initial load
-loadCases();
 </script>
 
 </body>
