@@ -1,150 +1,1123 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Case Tracker</title>
-
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Case Tracker"/>
+<title>KSP Case Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
-body { font-family: Arial; margin: 20px; }
-.case { padding: 10px; margin: 10px 0; border: 1px solid #ccc; }
-.red { background: #ffcccc; }
-.yellow { background: #fff3b0; }
-.green { background: #e6ffe6; }
+:root {
+  --bg: #0F1117;
+  --surface: #181C26;
+  --surface2: #1E2333;
+  --border: #2A3050;
+  --text: #E8EAF0;
+  --muted: #6B748F;
+  --green: #2ECC71;
+  --yellow: #F39C12;
+  --red: #E74C3C;
+  --blue: #3498DB;
+  --purple: #9B59B6;
+  --accent: #4A90D9;
+  --nav-h: 68px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;padding-bottom:calc(var(--nav-h) + var(--safe-b));overscroll-behavior:none;font-size:14px;}
+
+/* TOPBAR */
+.topbar{position:sticky;top:0;z-index:100;background:var(--surface);border-bottom:1px solid var(--border);padding:14px 16px;padding-top:calc(14px + env(safe-area-inset-top,0px));}
+.topbar-inner{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+.topbar h1{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:500;letter-spacing:1px;text-transform:uppercase;color:var(--accent);flex-shrink:0;}
+.topbar-right{display:flex;align-items:center;gap:8px;}
+.add-btn{background:var(--accent);color:white;border:none;border-radius:6px;padding:7px 14px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:500;cursor:pointer;transition:opacity 0.15s;flex-shrink:0;}
+.add-btn:active{opacity:0.8;}
+
+/* SYNC STATUS */
+.sync-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;transition:background 0.3s;}
+.sync-dot.idle{background:var(--green);}
+.sync-dot.syncing{background:var(--yellow);animation:pulse 1s infinite;}
+.sync-dot.error{background:var(--red);}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+.sync-label{font-size:10px;color:var(--muted);font-family:'IBM Plex Mono',monospace;}
+
+/* LOADING */
+.loading-screen{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:500;}
+.loading-screen.hidden{display:none;}
+.loading-spinner{width:28px;height:28px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.loading-text{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);letter-spacing:1px;}
+.load-error{font-size:12px;color:var(--red);text-align:center;max-width:260px;line-height:1.6;}
+.retry-btn{margin-top:8px;background:var(--surface);border:1px solid var(--border);color:var(--text);padding:8px 20px;border-radius:6px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;cursor:pointer;}
+
+/* DASHBOARD STATS */
+.stats-row{display:flex;gap:10px;padding:14px 14px 0;overflow-x:auto;scrollbar-width:none;}
+.stats-row::-webkit-scrollbar{display:none;}
+.stat-card{flex-shrink:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px 16px;min-width:110px;}
+.stat-card .s-label{font-size:10px;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:4px;}
+.stat-card .s-val{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:500;}
+.stat-card.red .s-val{color:var(--red);}
+.stat-card.yellow .s-val{color:var(--yellow);}
+.stat-card.green .s-val{color:var(--green);}
+.stat-card.blue .s-val{color:var(--blue);}
+
+/* SECTION */
+.section-hdr{padding:16px 14px 8px;display:flex;justify-content:space-between;align-items:center;}
+.section-hdr h2{font-family:'IBM Plex Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);}
+.badge{background:var(--surface2);border:1px solid var(--border);border-radius:20px;font-size:11px;padding:2px 8px;font-family:'IBM Plex Mono',monospace;}
+
+/* CASE CARD */
+.card{margin:0 14px 10px;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;transition:border-color 0.2s;}
+.card.urgent{border-color:var(--red);}
+.card.warning{border-color:var(--yellow);}
+.card.sa{border-left:3px solid var(--purple);}
+
+.card-hdr{padding:12px 14px 10px;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+.card-case-num{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);}
+.card-title{font-size:15px;font-weight:600;margin-top:2px;line-height:1.3;}
+.card-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+.tag{font-size:10px;font-weight:500;padding:2px 7px;border-radius:4px;text-transform:uppercase;letter-spacing:0.4px;}
+.tag-felony{background:#1a2a4a;color:var(--blue);}
+.tag-misd{background:#1a2a2a;color:var(--green);}
+.tag-sa{background:#2a1a3a;color:var(--purple);}
+.tag-open{background:#1a3020;color:var(--green);}
+.tag-closed{background:#2a2a2a;color:var(--muted);}
+
+/* STOPLIGHT ROW */
+.stoplight-row{display:flex;align-items:center;gap:8px;padding:0 14px 10px;}
+.stoplight{display:flex;align-items:center;gap:6px;font-size:12px;}
+.dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.dot-green{background:var(--green);}
+.dot-yellow{background:var(--yellow);}
+.dot-red{background:var(--red);}
+.dot-gray{background:var(--muted);}
+.stoplight-label{color:var(--muted);}
+.stoplight-val{font-family:'IBM Plex Mono',monospace;font-weight:500;}
+.stoplight-val.red{color:var(--red);}
+.stoplight-val.yellow{color:var(--yellow);}
+.stoplight-val.green{color:var(--green);}
+
+/* DEADLINE PILLS */
+.deadlines{padding:0 14px 10px;display:flex;flex-direction:column;gap:6px;}
+.dl-row{display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border-radius:6px;padding:7px 10px;}
+.dl-label{font-size:12px;color:var(--muted);}
+.dl-val{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500;}
+.dl-val.ok{color:var(--green);}
+.dl-val.warn{color:var(--yellow);}
+.dl-val.over{color:var(--red);}
+.dl-check{width:16px;height:16px;border-radius:3px;border:1.5px solid var(--border);cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;transition:all 0.15s;}
+.dl-check.checked{background:var(--green);border-color:var(--green);}
+.dl-check.checked::after{content:'✓';font-size:10px;color:white;}
+.dl-item{display:flex;align-items:center;gap:8px;flex:1;}
+
+/* CONTACT LOG IN CARD */
+.contact-log{padding:0 14px 8px;}
+.contact-log-hdr{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px;}
+.contact-entry{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);}
+.contact-entry:last-child{border-bottom:none;}
+.contact-entry-left{font-size:12px;line-height:1.4;}
+.contact-entry-date{font-family:'IBM Plex Mono',monospace;color:var(--text);}
+.contact-entry-method{color:var(--muted);font-size:11px;}
+.contact-entry-notes{color:var(--muted);font-size:11px;font-style:italic;}
+.contact-entry-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:0 4px;line-height:1;flex-shrink:0;}
+.contact-entry-del:active{color:var(--red);}
+
+/* CARD ACTIONS */
+.card-actions{border-top:1px solid var(--border);display:flex;}
+.card-btn{flex:1;padding:10px 8px;background:none;border:none;color:var(--muted);font-family:'IBM Plex Sans',sans-serif;font-size:12px;font-weight:500;cursor:pointer;transition:all 0.15s;text-align:center;}
+.card-btn:not(:last-child){border-right:1px solid var(--border);}
+.card-btn:active{background:var(--surface2);}
+.card-btn.primary{color:var(--accent);}
+.card-btn.danger{color:var(--red);}
+.card-btn.success{color:var(--green);}
+
+/* BOTTOM NAV */
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;height:calc(var(--nav-h) + var(--safe-b));background:var(--surface);border-top:1px solid var(--border);display:flex;padding-bottom:var(--safe-b);z-index:100;}
+.nav-tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;border:none;background:none;color:var(--muted);font-family:'IBM Plex Sans',sans-serif;font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;transition:color 0.15s;padding-bottom:4px;}
+.nav-tab.active{color:var(--accent);}
+.nav-tab svg{width:20px;height:20px;}
+
+/* VIEWS */
+.view{display:none;}
+.view.active{display:block;}
+
+/* SHEET */
+.sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;display:none;align-items:flex-end;}
+.sheet-overlay.open{display:flex;}
+.sheet{background:var(--surface);width:100%;max-height:94vh;border-radius:16px 16px 0 0;overflow-y:auto;padding:0 18px 48px;transform:translateY(100%);transition:transform 0.3s cubic-bezier(0.32,0.72,0,1);}
+.sheet-overlay.open .sheet{transform:translateY(0);}
+.sheet-handle{width:32px;height:3px;background:var(--border);border-radius:2px;margin:12px auto 18px;}
+.sheet h2{font-family:'IBM Plex Mono',monospace;font-size:14px;text-transform:uppercase;letter-spacing:1px;color:var(--accent);margin-bottom:20px;}
+
+/* FORM */
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:var(--muted);margin-bottom:5px;font-weight:500;}
+.field input,.field textarea,.field select{width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:8px;background:var(--surface2);font-family:'IBM Plex Sans',sans-serif;font-size:14px;color:var(--text);transition:border-color 0.15s;appearance:none;-webkit-appearance:none;}
+.field input:focus,.field textarea:focus,.field select:focus{outline:none;border-color:var(--accent);}
+.field textarea{min-height:70px;resize:vertical;}
+.field select option{background:var(--surface2);}
+.field-row{display:flex;gap:10px;}
+.field-row .field{flex:1;}
+
+/* CHECKBOX PILLS */
+.check-group{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;}
+.check-pill{display:flex;align-items:center;gap:6px;padding:7px 12px;border:1.5px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;transition:all 0.15s;user-select:none;color:var(--muted);}
+.check-pill input{display:none;}
+.check-pill.checked{border-color:var(--accent);background:rgba(74,144,217,0.1);color:var(--accent);}
+
+.section-divider{font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);padding:14px 0 6px;border-top:1px solid var(--border);margin-top:6px;}
+
+/* SHEET ACTIONS */
+.sheet-actions{display:flex;gap:10px;margin-top:20px;}
+.sheet-actions button{flex:1;padding:13px;border-radius:8px;font-family:'IBM Plex Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:opacity 0.15s;}
+.btn-save{background:var(--accent);color:white;}
+.btn-cancel{background:var(--surface2);color:var(--muted);}
+
+/* CONFIRM */
+.confirm-inner{background:var(--surface);width:100%;border-radius:16px 16px 0 0;padding:20px 18px 48px;transform:translateY(100%);transition:transform 0.3s cubic-bezier(0.32,0.72,0,1);}
+.sheet-overlay.open .confirm-inner{transform:translateY(0);}
+.confirm-inner h3{font-family:'IBM Plex Mono',monospace;font-size:14px;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;}
+.confirm-inner p{color:var(--muted);font-size:13px;margin-bottom:18px;line-height:1.5;}
+
+/* VACATION VIEW */
+.vacation-card{margin:0 14px 10px;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+.vacation-hdr{padding:14px;background:rgba(74,144,217,0.1);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+.vacation-hdr h3{font-family:'IBM Plex Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--accent);}
+.vacation-body{padding:12px 14px;}
+.vc-item{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);}
+.vc-item:last-child{border-bottom:none;}
+.vc-dot{width:8px;height:8px;border-radius:50%;margin-top:4px;flex-shrink:0;}
+.vc-text{font-size:13px;line-height:1.4;}
+.vc-sub{font-size:11px;color:var(--muted);margin-top:2px;font-family:'IBM Plex Mono',monospace;}
+
+/* EMPTY */
+.empty{text-align:center;padding:48px 24px;color:var(--muted);}
+.empty .e-icon{font-size:36px;margin-bottom:12px;}
+.empty p{font-size:13px;line-height:1.6;}
+
+/* CLOSURE GATE */
+.closure-gate{margin:0 14px 8px;background:rgba(231,76,60,0.08);border:1px solid rgba(231,76,60,0.3);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--red);}
+.closure-gate strong{display:block;margin-bottom:3px;}
 </style>
 </head>
-
 <body>
 
-<h2>Case Tracker</h2>
+<!-- LOADING SCREEN -->
+<div class="loading-screen" id="loadingScreen">
+  <div class="loading-spinner"></div>
+  <div class="loading-text" id="loadingText">LOADING CASES...</div>
+  <div class="load-error" id="loadError" style="display:none;"></div>
+  <button class="retry-btn" id="retryBtn" style="display:none;" onclick="loadCases()">Retry</button>
+</div>
 
-<input id="url" placeholder="https://script.google.com/macros/s/AKfycbwCNtCrhv4-7TTpJsz-bC3ol3efs1FAorGkVgaI0V21DvNk0Lrl-jaHXWm6HdplbOV6/exec">
-<button onclick="setUrl()">Save URL</button>
+<div class="topbar">
+  <div class="topbar-inner">
+    <h1>KSP // Cases</h1>
+    <div class="topbar-right">
+      <div class="sync-dot idle" id="syncDot"></div>
+      <span class="sync-label" id="syncLabel">Synced</span>
+      <button class="add-btn" onclick="openAdd()">+ New Case</button>
+    </div>
+  </div>
+</div>
 
-<button onclick="addCase()">Add Case</button>
-<button onclick="sync()">Sync</button>
+<!-- VIEW: DASHBOARD -->
+<div id="viewDash" class="view active">
+  <div class="stats-row" id="statsRow"></div>
+  <div class="section-hdr"><h2>Priority Queue</h2><span class="badge" id="priorityBadge">0</span></div>
+  <div id="priorityList"></div>
+  <div class="section-hdr"><h2>All Active Cases</h2><span class="badge" id="activeBadge">0</span></div>
+  <div id="activeList"></div>
+</div>
 
-<div id="list"></div>
+<!-- VIEW: CLOSED -->
+<div id="viewClosed" class="view">
+  <div class="section-hdr"><h2>Closed Cases</h2><span class="badge" id="closedBadge">0</span></div>
+  <div id="closedList"></div>
+</div>
+
+<!-- VIEW: VACATION -->
+<div id="viewVacation" class="view">
+  <div class="section-hdr"><h2>Leave Management</h2></div>
+  <div style="padding:0 14px 14px;">
+    <div class="field"><label>Leave Start Date</label><input type="date" id="vacStart" onchange="renderVacation()"/></div>
+    <div class="field"><label>Leave End Date</label><input type="date" id="vacEnd" onchange="renderVacation()"/></div>
+    <div class="field"><label>Temporary Point of Contact</label><input type="text" id="vacPOC" placeholder="Name / Badge #" onchange="renderVacation()"/></div>
+  </div>
+  <div id="vacationOutput"></div>
+</div>
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav">
+  <button class="nav-tab active" id="tabDash" onclick="switchTab('Dash')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+    Dashboard
+  </button>
+  <button class="nav-tab" id="tabClosed" onclick="switchTab('Closed')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+    Closed
+  </button>
+  <button class="nav-tab" id="tabVacation" onclick="switchTab('Vacation')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    Leave
+  </button>
+</nav>
+
+<!-- ADD/EDIT SHEET -->
+<div class="sheet-overlay" id="addSheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h2 id="sheetTitle">New Case</h2>
+
+    <div class="field-row">
+      <div class="field"><label>Case Number</label><input id="fCaseNum" placeholder="YY-PP-NNNN"/></div>
+      <div class="field"><label>Opened Date</label><input id="fOpened" type="date"/></div>
+    </div>
+    <div class="field"><label>Offense / Title</label><input id="fTitle" placeholder="e.g. Sexual Assault 1st Degree"/></div>
+    <div class="field-row">
+      <div class="field">
+        <label>Classification</label>
+        <select id="fClass">
+          <option value="felony">Felony</option>
+          <option value="misdemeanor">Misdemeanor</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Case Type</label>
+        <select id="fType">
+          <option value="standard">Standard</option>
+          <option value="sa">Sexual Assault</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>Victim Name</label><input id="fVictim" placeholder="Last, First"/></div>
+    <div class="field"><label>Last Victim Contact Date</label><input id="fLastContact" type="date"/></div>
+    <div class="field"><label>Suspect (if identified)</label><input id="fSuspect" placeholder="Last, First or 'Unknown'"/></div>
+
+    <div class="section-divider">Submission Tracking (OM-C-1)</div>
+    <div class="field"><label>KYIBRS Transmitted to Supervisor (within 5 days)</label><input id="fKyibrsTransmit" type="date"/></div>
+    <div class="field"><label>KYIBRS Accepted by Supervisor (within 10 days)</label><input id="fKyibrsAccepted" type="date"/></div>
+
+    <div id="saFields" style="display:none;">
+      <div class="section-divider">Sexual Assault Fields (OM-C-1c)</div>
+      <div class="field"><label>SAFE Kit — Notification Date from Facility</label><input id="fSafeNotify" type="date"/></div>
+      <div class="field"><label>SAFE Kit — Taken into Custody Date</label><input id="fSafeCustody" type="date"/></div>
+      <div class="field"><label>SAFE Kit — Submitted to KSP Lab Date</label><input id="fSafeLab" type="date"/></div>
+      <div class="field">
+        <label>Advocate Consulted Before DNA Notification?</label>
+        <div class="check-group">
+          <label class="check-pill" id="pillAdvocate">
+            <input type="checkbox" id="fAdvocate" onchange="togglePill('pillAdvocate',this)"> RCC Advocate Consulted
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-divider">Digital Evidence (OM-C-1)</div>
+    <div class="field">
+      <label>Evidence Status</label>
+      <div class="check-group">
+        <label class="check-pill" id="pillNICE"><input type="checkbox" id="fNICE" onchange="togglePill('pillNICE',this)"> NICE Uploaded</label>
+        <label class="check-pill" id="pillBWC"><input type="checkbox" id="fBWC" onchange="togglePill('pillBWC',this)"> BWC Tagged/Uploaded</label>
+        <label class="check-pill" id="pillVol"><input type="checkbox" id="fVol" onchange="togglePill('pillVol',this)"> Volumized (100+ pgs)</label>
+      </div>
+    </div>
+
+    <div class="section-divider">Case Notes</div>
+    <div class="field"><label>Notes</label><textarea id="fNotes" placeholder="Leads, status, follow-up actions..."></textarea></div>
+
+    <div class="sheet-actions">
+      <button class="btn-cancel" onclick="closeAdd()">Cancel</button>
+      <button class="btn-save" onclick="saveCase()">Save Case</button>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRM SHEET -->
+<div class="sheet-overlay" id="confirmSheet">
+  <div class="confirm-inner" id="confirmInner"></div>
+</div>
+
+<!-- CONTACT LOG SHEET -->
+<div class="sheet-overlay" id="contactSheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h2>Log Victim Contact</h2>
+    <div class="field"><label>Contact Date</label><input id="contactDate" type="date"/></div>
+    <div class="field"><label>Contact Method</label>
+      <select id="contactMethod">
+        <option value="phone">Phone</option>
+        <option value="in-person">In Person</option>
+        <option value="written">Written Notice</option>
+        <option value="attempted">Attempted — No Answer</option>
+      </select>
+    </div>
+    <div class="field"><label>Notes</label><textarea id="contactNotes" placeholder="Brief summary of contact..."></textarea></div>
+    <div class="sheet-actions">
+      <button class="btn-cancel" onclick="closeContact()">Cancel</button>
+      <button class="btn-save" onclick="saveContact()">Log Contact</button>
+    </div>
+  </div>
+</div>
+
+<!-- CLOSURE SHEET -->
+<div class="sheet-overlay" id="closureSheet">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <h2>Case Closure Checklist</h2>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:16px;">Per OM-C-1, all items below must be confirmed before this case can be closed.</p>
+
+    <div class="deadlines" id="closureChecklist"></div>
+
+    <div class="field" style="margin-top:14px;"><label>Closing Notes</label><textarea id="closureNotes" placeholder="Disposition summary, court actions, etc."></textarea></div>
+
+    <div class="sheet-actions">
+      <button class="btn-cancel" onclick="closeClosureSheet()">Cancel</button>
+      <button class="btn-save" id="closureConfirmBtn" onclick="confirmClose()" style="background:var(--red);">Close Case</button>
+    </div>
+  </div>
+</div>
 
 <script>
+// ── CONFIG ────────────────────────────────────────────────
+const API_URL = "https://script.google.com/macros/s/AKfycbz0HhtemXKpAoZm_otJc3moGcZyypOLRyf_eYMcJ3hCOcEgGAx906ze5EnbjSqbFxw/exec";
 
-let GAS_URL = localStorage.getItem("gas_url");
+// ── STATE ─────────────────────────────────────────────────
 let cases = [];
+let editIdx    = null;
+let contactIdx = null;
+let closureIdx = null;
 
-if (GAS_URL) load();
-
-function setUrl() {
-  GAS_URL = document.getElementById("url").value;
-  localStorage.setItem("gas_url", GAS_URL);
-  load();
+// ── SYNC STATUS ───────────────────────────────────────────
+function setSyncStatus(status, text) {
+  const dot   = document.getElementById('syncDot');
+  const label = document.getElementById('syncLabel');
+  dot.className = 'sync-dot ' + status;
+  label.textContent = text;
 }
 
-function load() {
-  fetch(GAS_URL)
-    .then(r => r.json())
-    .then(d => {
-      cases = d.cases || [];
-      render();
+// ── API ───────────────────────────────────────────────────
+
+async function loadCases() {
+  const screen    = document.getElementById('loadingScreen');
+  const loadText  = document.getElementById('loadingText');
+  const loadErr   = document.getElementById('loadError');
+  const retryBtn  = document.getElementById('retryBtn');
+
+  screen.classList.remove('hidden');
+  loadText.style.display = 'block';
+  loadErr.style.display  = 'none';
+  retryBtn.style.display = 'none';
+  loadText.textContent   = 'LOADING CASES...';
+
+  try {
+    // Apps Script doGet returns via redirect — use no-cors won't work for GET
+    // since we need to read the response body. Apps Script GET works fine with
+    // regular fetch as long as deployment is set to "Anyone".
+    const res  = await fetch(API_URL);
+    const data = await res.json();
+
+    if (!data.ok) throw new Error(data.error || 'Unknown error from server');
+
+    cases = data.cases || [];
+    screen.classList.add('hidden');
+    setSyncStatus('idle', 'Synced');
+    render();
+
+  } catch (err) {
+    loadText.style.display = 'none';
+    loadErr.style.display  = 'block';
+    retryBtn.style.display = 'block';
+    loadErr.textContent    = 'Could not load cases from Google Sheets.\n\n' + err.message;
+  }
+}
+
+// POST helper — Apps Script POST redirects, so we use no-cors.
+// We can't read the response body in no-cors mode, which is fine
+// for fire-and-forget saves. We optimistically update the UI.
+async function apiPost(payload) {
+  setSyncStatus('syncing', 'Saving...');
+  try {
+    await fetch(API_URL, {
+      method:  'POST',
+      mode:    'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload)
     });
+    setSyncStatus('idle', 'Synced');
+  } catch (err) {
+    setSyncStatus('error', 'Sync error — check connection');
+    console.error('Sync error:', err);
+  }
 }
 
-function sync() {
-  fetch(GAS_URL, {
-    method: "POST",
-    body: JSON.stringify({ cases }),
-    headers: { "Content-Type": "application/json" }
-  }).then(load);
-}
-
-function addCase() {
-  cases.push({
-    id: crypto.randomUUID(),
-    caseNum: "",
-    title: "",
-    victim: "",
-    suspect: "",
-    opened: new Date().toISOString().split("T")[0],
-    lastContact: "",
-    kyibrsTransmit: "",
-    kyibrsAccepted: "",
-    safeLab: "",
-    closed: false
+async function syncCases() {
+  // Strip contactLog before sending — contacts have their own endpoint
+  const payload = cases.map(c => {
+    const { contactLog, ...rest } = c;
+    return rest;
   });
+  await apiPost({ type: 'cases', cases: payload });
+}
+
+async function postContact(contact) {
+  await apiPost({ type: 'contact', contact });
+}
+
+async function deleteContactRemote(contactId, caseId) {
+  await apiPost({ type: 'deleteContact', contactId, caseId });
+}
+
+// ── DATE HELPERS ─────────────────────────────────────────
+function today() { return new Date().toISOString().split('T')[0]; }
+function daysSince(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr + 'T00:00:00');
+  return Math.floor((new Date() - d) / 86400000);
+}
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr + 'T00:00:00');
+  return Math.ceil((d - new Date()) / 86400000);
+}
+function addDays(dateStr, n) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().split('T')[0];
+}
+function fmt(dateStr) {
+  if (!dateStr) return '—';
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {month:'short',day:'numeric',year:'2-digit'});
+}
+function uuid() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+// ── STOPLIGHT LOGIC ──────────────────────────────────────
+function contactStatus(c) {
+  const ref = c.lastContact || c.opened;
+  if (!ref) return { cls: 'gray', days: null, label: 'No Contact Logged' };
+  const d = daysSince(ref);
+  if (d >= 30) return { cls: 'red',    days: d, label: `${d}d since contact — OVERDUE` };
+  if (d >= 20) return { cls: 'yellow', days: d, label: `${d}d since contact — Due soon` };
+  return         { cls: 'green',  days: d, label: `${d}d since contact` };
+}
+
+function kyibrsTransmitStatus(c) {
+  if (!c.opened) return null;
+  const deadline = addDays(c.opened, 5);
+  if (c.kyibrsTransmit) return { ok: true, label: `Transmitted ${fmt(c.kyibrsTransmit)}` };
+  const rem = daysUntil(deadline);
+  if (rem < 0)  return { ok: false, urgent: true,    label: `OVERDUE — was due ${fmt(deadline)}` };
+  return              { ok: false, urgent: rem <= 1, label: `Due ${fmt(deadline)} (${rem}d)` };
+}
+
+function kyibrsAcceptStatus(c) {
+  if (!c.opened) return null;
+  const deadline = addDays(c.opened, 10);
+  if (c.kyibrsAccepted) return { ok: true, label: `Accepted ${fmt(c.kyibrsAccepted)}` };
+  const rem = daysUntil(deadline);
+  if (rem < 0)  return { ok: false, urgent: true,    label: `OVERDUE — was due ${fmt(deadline)}` };
+  return              { ok: false, urgent: rem <= 2, label: `Due ${fmt(deadline)} (${rem}d)` };
+}
+
+function safeCustodyStatus(c) {
+  if (!c.safeNotify) return null;
+  const deadline = addDays(c.safeNotify, 5);
+  if (c.safeCustody) return { ok: true, label: `In Custody ${fmt(c.safeCustody)}` };
+  const rem = daysUntil(deadline);
+  if (rem < 0)  return { ok: false, urgent: true,    label: `OVERDUE — KRS 15.440` };
+  return              { ok: false, urgent: rem <= 1, label: `Kit custody due ${fmt(deadline)} (${rem}d) — KRS 15.440` };
+}
+
+function safeLabStatus(c) {
+  if (!c.safeCustody) return null;
+  const deadline = addDays(c.safeCustody, 30);
+  if (c.safeLab) return { ok: true, label: `Submitted to Lab ${fmt(c.safeLab)}` };
+  const rem = daysUntil(deadline);
+  if (rem < 0)  return { ok: false, urgent: true,    label: `OVERDUE — KRS 15.440 / KRS 17.175` };
+  return              { ok: false, urgent: rem <= 5, label: `Lab submission due ${fmt(deadline)} (${rem}d)` };
+}
+
+function isUrgent(c) {
+  if (contactStatus(c).cls === 'red') return true;
+  const kt = kyibrsTransmitStatus(c);
+  if (kt && !kt.ok && kt.urgent) return true;
+  const ka = kyibrsAcceptStatus(c);
+  if (ka && !ka.ok && ka.urgent) return true;
+  if (c.type === 'sa') {
+    const sc = safeCustodyStatus(c);
+    if (sc && !sc.ok && sc.urgent) return true;
+    const sl = safeLabStatus(c);
+    if (sl && !sl.ok && sl.urgent) return true;
+  }
+  return false;
+}
+
+function isWarning(c) { return contactStatus(c).cls === 'yellow'; }
+
+// ── CLOSURE ELIGIBILITY ──────────────────────────────────
+function canClose(c) {
+  if (!c.opened) return { eligible: false, reason: 'No opened date set.' };
+  const days = daysSince(c.opened);
+  if (c.classification === 'felony' && days < 180)
+    return { eligible: false, reason: `Felony cases must remain open 6 months. ${180 - days} days remaining.` };
+  if (c.classification === 'misdemeanor' && days < 90)
+    return { eligible: false, reason: `Misdemeanor cases must remain open 90 days. ${90 - days} days remaining.` };
+  return { eligible: true };
+}
+
+// ── RENDER ───────────────────────────────────────────────
+function render() {
+  renderStats();
+  renderActive();
+  renderClosed();
+  renderVacation();
+}
+
+function renderStats() {
+  const open     = cases.filter(c => !c.closed);
+  const redCount = open.filter(c => contactStatus(c).cls === 'red').length;
+  const yelCount = open.filter(c => contactStatus(c).cls === 'yellow').length;
+  const saCount  = open.filter(c => c.type === 'sa').length;
+
+  document.getElementById('statsRow').innerHTML = `
+    <div class="stat-card red"><div class="s-label">Overdue Contact</div><div class="s-val">${redCount}</div></div>
+    <div class="stat-card yellow"><div class="s-label">Contact Warning</div><div class="s-val">${yelCount}</div></div>
+    <div class="stat-card blue"><div class="s-label">Active Cases</div><div class="s-val">${open.length}</div></div>
+    <div class="stat-card"><div class="s-label">SA Cases</div><div class="s-val" style="color:var(--purple)">${saCount}</div></div>
+  `;
+}
+
+function createCard(c, i) {
+  const cs          = contactStatus(c);
+  const urg         = isUrgent(c);
+  const warn        = !urg && isWarning(c);
+  const kt          = kyibrsTransmitStatus(c);
+  const ka          = kyibrsAcceptStatus(c);
+  const eligibility = canClose(c);
+
+  let cls = 'card';
+  if (c.type === 'sa') cls += ' sa';
+  if (urg)             cls += ' urgent';
+  else if (warn)       cls += ' warning';
+
+  let tagsHtml = `<span class="tag tag-${c.classification === 'felony' ? 'felony' : 'misd'}">${c.classification || 'felony'}</span>`;
+  if (c.type === 'sa') tagsHtml += `<span class="tag tag-sa">Sexual Assault</span>`;
+  tagsHtml += `<span class="tag tag-open">Active</span>`;
+
+  const dotCls   = `dot dot-${cs.cls}`;
+  const slValCls = `stoplight-val ${cs.cls !== 'gray' ? cs.cls : ''}`;
+
+  // Deadlines
+  let dlHtml = '';
+  if (kt) {
+    const dlCls = kt.ok ? 'ok' : (kt.urgent ? 'over' : 'warn');
+    dlHtml += `<div class="dl-row"><div class="dl-item"><span class="dl-label">KYIBRS → Supervisor (5-day)</span></div><span class="dl-val ${dlCls}">${kt.label}</span></div>`;
+  }
+  if (ka) {
+    const dlCls = ka.ok ? 'ok' : (ka.urgent ? 'over' : 'warn');
+    dlHtml += `<div class="dl-row"><div class="dl-item"><span class="dl-label">Supervisor Acceptance (10-day)</span></div><span class="dl-val ${dlCls}">${ka.label}</span></div>`;
+  }
+  if (c.type === 'sa') {
+    const sc = safeCustodyStatus(c);
+    const sl = safeLabStatus(c);
+    if (sc) {
+      const dlCls = sc.ok ? 'ok' : (sc.urgent ? 'over' : 'warn');
+      dlHtml += `<div class="dl-row"><div class="dl-item"><span class="dl-label">SAFE Kit — Custody (5-day)</span></div><span class="dl-val ${dlCls}">${sc.label}</span></div>`;
+    }
+    if (sl) {
+      const dlCls = sl.ok ? 'ok' : (sl.urgent ? 'over' : 'warn');
+      dlHtml += `<div class="dl-row"><div class="dl-item"><span class="dl-label">SAFE Kit → KSP Lab (30-day)</span></div><span class="dl-val ${dlCls}">${sl.label}</span></div>`;
+    }
+    dlHtml += `<div class="dl-row"><div class="dl-item">
+      <div class="dl-check ${c.advocateConsulted ? 'checked' : ''}" onclick="toggleField(${i},'advocateConsulted')"></div>
+      <span class="dl-label">RCC Advocate consulted before DNA notification</span>
+    </div></div>`;
+  }
+  dlHtml += `<div class="dl-row"><div class="dl-item">
+    <div class="dl-check ${c.niceUploaded ? 'checked' : ''}" onclick="toggleField(${i},'niceUploaded')"></div>
+    <span class="dl-label">NICE Investigate — Evidence Uploaded</span>
+  </div></div>`;
+  dlHtml += `<div class="dl-row"><div class="dl-item">
+    <div class="dl-check ${c.bwcUploaded ? 'checked' : ''}" onclick="toggleField(${i},'bwcUploaded')"></div>
+    <span class="dl-label">BWC — Tagged & Uploaded to Motorola EL Cloud</span>
+  </div></div>`;
+  dlHtml += `<div class="dl-row"><div class="dl-item">
+    <div class="dl-check ${c.volumized ? 'checked' : ''}" onclick="toggleField(${i},'volumized')"></div>
+    <span class="dl-label">Volumization Complete (100+ pages)</span>
+  </div></div>`;
+
+  // Contact log
+  let contactLogHtml = '';
+  if (c.contactLog && c.contactLog.length) {
+    const entries = [...c.contactLog].sort((a,b) => b.date.localeCompare(a.date));
+    contactLogHtml = `<div class="contact-log">
+      <div class="contact-log-hdr">Contact History</div>
+      ${entries.map(ct => `
+        <div class="contact-entry">
+          <div class="contact-entry-left">
+            <div class="contact-entry-date">${fmt(ct.date)}</div>
+            <div class="contact-entry-method">${ct.method}</div>
+            ${ct.notes ? `<div class="contact-entry-notes">${ct.notes}</div>` : ''}
+          </div>
+          <button class="contact-entry-del" onclick="deleteContactEntry('${c.id}','${ct.id}',${i})" title="Remove">×</button>
+        </div>`).join('')}
+    </div>`;
+  }
+
+  const notesHtml = c.notes
+    ? `<div style="padding:0 14px 10px;font-size:12px;color:var(--muted);font-style:italic;line-height:1.5;">${c.notes}</div>`
+    : '';
+
+  const gateHtml = !eligibility.eligible
+    ? `<div class="closure-gate"><strong>⏳ Not Yet Eligible for Closure</strong>${eligibility.reason}</div>`
+    : '';
+
+  return `<div class="${cls}" data-index="${i}">
+    <div class="card-hdr">
+      <div>
+        <div class="card-case-num">${c.caseNum || 'No Case #'} &nbsp;·&nbsp; Opened ${fmt(c.opened)}</div>
+        <div class="card-title">${c.title || 'Untitled Case'}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px;">Victim: ${c.victim || '—'} ${c.suspect ? '· Suspect: ' + c.suspect : ''}</div>
+        <div class="card-tags">${tagsHtml}</div>
+      </div>
+    </div>
+    <div class="stoplight-row">
+      <div class="stoplight">
+        <div class="${dotCls}"></div>
+        <span class="${slValCls}">${cs.label}</span>
+      </div>
+    </div>
+    <div class="deadlines">${dlHtml}</div>
+    ${contactLogHtml}
+    ${notesHtml}
+    ${gateHtml}
+    <div class="card-actions">
+      <button class="card-btn primary" onclick="openContact(${i})">Log Contact</button>
+      <button class="card-btn" onclick="openEdit(${i})">Edit</button>
+      <button class="card-btn success" onclick="openClosure(${i})">Close</button>
+      <button class="card-btn danger" onclick="promptDelete(${i})">Delete</button>
+    </div>
+  </div>`;
+}
+
+function renderActive() {
+  const open     = cases.filter(c => !c.closed);
+  const priority = open.filter(c => isUrgent(c) || isWarning(c));
+
+  document.getElementById('priorityBadge').textContent = priority.length;
+  document.getElementById('activeBadge').textContent   = open.length;
+
+  const pList = document.getElementById('priorityList');
+  pList.innerHTML = priority.length
+    ? priority.map((c,_) => createCard(c, cases.indexOf(c))).join('')
+    : `<div class="empty"><div class="e-icon">✅</div><p>No cases in priority queue.<br>All contacts and deadlines are current.</p></div>`;
+
+  const aList = document.getElementById('activeList');
+  aList.innerHTML = open.length
+    ? open.map(c => createCard(c, cases.indexOf(c))).join('')
+    : `<div class="empty"><div class="e-icon">📁</div><p>No active cases.<br>Tap "+ New Case" to add one.</p></div>`;
+}
+
+function renderClosed() {
+  const closed = cases.filter(c => c.closed);
+  document.getElementById('closedBadge').textContent = closed.length;
+  const el = document.getElementById('closedList');
+  if (!closed.length) {
+    el.innerHTML = `<div class="empty"><div class="e-icon">📂</div><p>No closed cases yet.</p></div>`;
+    return;
+  }
+  el.innerHTML = closed.map(c => {
+    const i = cases.indexOf(c);
+    return `<div class="card" data-index="${i}">
+      <div class="card-hdr">
+        <div>
+          <div class="card-case-num">${c.caseNum || 'No Case #'}</div>
+          <div class="card-title">${c.title || 'Untitled'}</div>
+          <div style="font-size:12px;color:var(--muted);margin-top:3px;">Opened: ${fmt(c.opened)} &nbsp;·&nbsp; Closed: ${fmt(c.closedDate)}</div>
+          <div style="font-size:12px;color:var(--muted);">Victim: ${c.victim || '—'}</div>
+          ${c.closureNotes ? `<div style="font-size:12px;color:var(--muted);margin-top:4px;font-style:italic;">${c.closureNotes}</div>` : ''}
+        </div>
+        <span class="tag tag-closed">Closed</span>
+      </div>
+      <div class="card-actions">
+        <button class="card-btn" onclick="reopenCase(${i})">Reopen</button>
+        <button class="card-btn danger" onclick="promptDelete(${i})">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderVacation() {
+  const start = document.getElementById('vacStart').value;
+  const end   = document.getElementById('vacEnd').value;
+  const poc   = document.getElementById('vacPOC').value;
+  const el    = document.getElementById('vacationOutput');
+
+  if (!start || !end) {
+    el.innerHTML = `<div class="empty"><div class="e-icon">🗓️</div><p>Enter leave dates above to generate<br>your pre-departure checklist.</p></div>`;
+    return;
+  }
+
+  const open = cases.filter(c => !c.closed);
+
+  const toNotify = open.map(c => {
+    const ref            = c.lastContact || c.opened;
+    const contactDeadline = addDays(ref, 30);
+    const duringLeave    = contactDeadline >= start && contactDeadline <= end;
+    const overdueSoon    = daysSince(ref) >= 20;
+    return { c, duringLeave, overdueSoon, contactDeadline };
+  }).filter(x => x.duringLeave || x.overdueSoon);
+
+  const saDeadlines = open.filter(c => c.type === 'sa').map(c => {
+    const items = [];
+    if (c.safeNotify && !c.safeCustody) {
+      const dl = addDays(c.safeNotify, 5);
+      if (dl >= start && dl <= end) items.push({ label: 'SAFE Kit custody deadline', date: dl, caseNum: c.caseNum });
+    }
+    if (c.safeCustody && !c.safeLab) {
+      const dl = addDays(c.safeCustody, 30);
+      if (dl >= start && dl <= end) items.push({ label: 'SAFE Kit lab submission deadline', date: dl, caseNum: c.caseNum });
+    }
+    return items;
+  }).flat();
+
+  let html = `<div class="vacation-card">
+    <div class="vacation-hdr">
+      <h3>Leave: ${fmt(start)} → ${fmt(end)}</h3>
+      ${poc ? `<span style="font-size:12px;color:var(--accent);">POC: ${poc}</span>` : ''}
+    </div>
+    <div class="vacation-body">`;
+
+  if (!toNotify.length && !saDeadlines.length) {
+    html += `<p style="font-size:13px;color:var(--green);padding:8px 0;">✅ No critical deadlines fall during this leave period.</p>`;
+  }
+
+  if (toNotify.length) {
+    html += `<div style="font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);padding-bottom:8px;">Victims Requiring Pre-Leave Contact</div>`;
+    toNotify.forEach(x => {
+      const dotCls = x.duringLeave ? 'dot-red' : 'dot-yellow';
+      html += `<div class="vc-item">
+        <div class="vc-dot ${dotCls}"></div>
+        <div class="vc-text">
+          ${x.c.victim || 'Unknown Victim'} — Case ${x.c.caseNum || 'N/A'}
+          <div class="vc-sub">${x.c.title || ''} · 30-day contact due ${fmt(x.contactDeadline)}</div>
+          ${poc ? `<div class="vc-sub" style="color:var(--accent);">Notify: temp POC is ${poc}</div>` : ''}
+        </div>
+      </div>`;
+    });
+  }
+
+  if (saDeadlines.length) {
+    html += `<div style="font-family:'IBM Plex Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);padding:12px 0 8px;">SAFE Kit Deadlines During Leave</div>`;
+    saDeadlines.forEach(d => {
+      html += `<div class="vc-item">
+        <div class="vc-dot dot-red"></div>
+        <div class="vc-text">
+          ${d.label}
+          <div class="vc-sub">Case ${d.caseNum || 'N/A'} · Due ${fmt(d.date)}</div>
+        </div>
+      </div>`;
+    });
+  }
+
+  html += `</div></div>`;
+  el.innerHTML = html;
+}
+
+// ── TOGGLE FIELDS (checkboxes on cards) ──────────────────
+function toggleField(i, field) {
+  cases[i][field] = !cases[i][field];
+  render();
+  syncCases();
+}
+
+// ── CONTACT LOG ──────────────────────────────────────────
+function openContact(i) {
+  contactIdx = i;
+  document.getElementById('contactDate').value   = today();
+  document.getElementById('contactMethod').value = 'phone';
+  document.getElementById('contactNotes').value  = '';
+  document.getElementById('contactSheet').classList.add('open');
+}
+function closeContact() { document.getElementById('contactSheet').classList.remove('open'); }
+
+async function saveContact() {
+  const date   = document.getElementById('contactDate').value;
+  const method = document.getElementById('contactMethod').value;
+  const notes  = document.getElementById('contactNotes').value;
+  if (!date) return;
+
+  const c = cases[contactIdx];
+  if (!c.contactLog) c.contactLog = [];
+
+  const entry = {
+    id:     uuid(),
+    caseId: c.id,
+    date,
+    method,
+    notes
+  };
+
+  c.contactLog.push(entry);
+  c.lastContact = date;
+
+  closeContact();
+  render();
+
+  // Update lastContact in the cases sheet + add entry to ContactLog sheet
+  await syncCases();
+  await postContact(entry);
+}
+
+async function deleteContactEntry(caseId, contactId, caseIdx) {
+  const c = cases[caseIdx];
+  c.contactLog = (c.contactLog || []).filter(ct => ct.id !== contactId);
+
+  // Update lastContact to the most recent remaining entry
+  if (c.contactLog.length) {
+    c.lastContact = c.contactLog.reduce((latest, ct) =>
+      ct.date > latest ? ct.date : latest, '');
+  } else {
+    c.lastContact = '';
+  }
 
   render();
+  await syncCases();
+  await deleteContactRemote(contactId, caseId);
 }
 
-// ───────────── RULE ENGINE ─────────────
-
-function daysSince(date) {
-  if (!date) return 9999;
-  return Math.floor((new Date() - new Date(date)) / 86400000);
+// ── ADD / EDIT ───────────────────────────────────────────
+function openAdd() {
+  editIdx = null;
+  clearForm();
+  document.getElementById('fOpened').value   = today();
+  document.getElementById('sheetTitle').textContent = 'New Case';
+  document.getElementById('addSheet').classList.add('open');
 }
 
-function getColor(c) {
-  const d = daysSince(c.lastContact);
+function openEdit(i) {
+  editIdx = i;
+  const c = cases[i];
+  document.getElementById('fCaseNum').value      = c.caseNum      || '';
+  document.getElementById('fOpened').value       = c.opened       || '';
+  document.getElementById('fTitle').value        = c.title        || '';
+  document.getElementById('fClass').value        = c.classification || 'felony';
+  document.getElementById('fType').value         = c.type         || 'standard';
+  document.getElementById('fVictim').value       = c.victim       || '';
+  document.getElementById('fLastContact').value  = c.lastContact  || '';
+  document.getElementById('fSuspect').value      = c.suspect      || '';
+  document.getElementById('fKyibrsTransmit').value = c.kyibrsTransmit || '';
+  document.getElementById('fKyibrsAccepted').value = c.kyibrsAccepted || '';
+  document.getElementById('fSafeNotify').value   = c.safeNotify   || '';
+  document.getElementById('fSafeCustody').value  = c.safeCustody  || '';
+  document.getElementById('fSafeLab').value      = c.safeLab      || '';
+  document.getElementById('fNotes').value        = c.notes        || '';
 
-  if (d >= 30) return "red";
-  if (d >= 20) return "yellow";
-  return "green";
+  setPill('pillAdvocate', 'fAdvocate', !!c.advocateConsulted);
+  setPill('pillNICE',     'fNICE',     !!c.niceUploaded);
+  setPill('pillBWC',      'fBWC',      !!c.bwcUploaded);
+  setPill('pillVol',      'fVol',      !!c.volumized);
+
+  toggleSAFields();
+  document.getElementById('sheetTitle').textContent = 'Edit Case';
+  document.getElementById('addSheet').classList.add('open');
 }
 
-function canClose(c) {
-  const d = daysSince(c.opened);
+function closeAdd() { document.getElementById('addSheet').classList.remove('open'); }
 
-  if (c.classification === "felony") return d >= 180;
-  return d >= 90;
+function clearForm() {
+  ['fCaseNum','fOpened','fTitle','fVictim','fLastContact','fSuspect',
+   'fKyibrsTransmit','fKyibrsAccepted','fSafeNotify','fSafeCustody','fSafeLab','fNotes'
+  ].forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('fClass').value = 'felony';
+  document.getElementById('fType').value  = 'standard';
+  setPill('pillAdvocate', 'fAdvocate', false);
+  setPill('pillNICE',     'fNICE',     false);
+  setPill('pillBWC',      'fBWC',      false);
+  setPill('pillVol',      'fVol',      false);
+  toggleSAFields();
 }
 
-// ───────────── RENDER ─────────────
+function setPill(pillId, cbId, checked) {
+  document.getElementById(cbId).checked = checked;
+  document.getElementById(pillId).classList.toggle('checked', checked);
+}
 
-function render() {
-  const div = document.getElementById("list");
-  div.innerHTML = "";
+function toggleSAFields() {
+  document.getElementById('saFields').style.display =
+    document.getElementById('fType').value === 'sa' ? 'block' : 'none';
+}
+document.getElementById('fType').addEventListener('change', toggleSAFields);
 
-  cases.forEach((c, i) => {
+function togglePill(pillId, cb) {
+  document.getElementById(pillId).classList.toggle('checked', cb.checked);
+}
 
-    const color = getColor(c);
-    const closeLocked = !canClose(c);
+async function saveCase() {
+  const caseNum = document.getElementById('fCaseNum').value.trim();
+  const title   = document.getElementById('fTitle').value.trim();
+  if (!caseNum) { document.getElementById('fCaseNum').style.borderColor = 'var(--red)'; }
+  if (!title)   { document.getElementById('fTitle').style.borderColor   = 'var(--red)'; }
+  if (!caseNum || !title) return;
 
-    div.innerHTML += `
-      <div class="case ${color}">
-        <input value="${c.caseNum}" onchange="cases[${i}].caseNum=this.value">
-        <input value="${c.title}" onchange="cases[${i}].title=this.value">
-        <input value="${c.victim}" onchange="cases[${i}].victim=this.value">
+  const d = {
+    id:               editIdx !== null ? cases[editIdx].id : uuid(),
+    caseNum,
+    opened:           document.getElementById('fOpened').value,
+    title,
+    classification:   document.getElementById('fClass').value,
+    type:             document.getElementById('fType').value,
+    victim:           document.getElementById('fVictim').value.trim(),
+    lastContact:      document.getElementById('fLastContact').value,
+    suspect:          document.getElementById('fSuspect').value.trim(),
+    kyibrsTransmit:   document.getElementById('fKyibrsTransmit').value,
+    kyibrsAccepted:   document.getElementById('fKyibrsAccepted').value,
+    safeNotify:       document.getElementById('fSafeNotify').value,
+    safeCustody:      document.getElementById('fSafeCustody').value,
+    safeLab:          document.getElementById('fSafeLab').value,
+    notes:            document.getElementById('fNotes').value.trim(),
+    advocateConsulted: document.getElementById('fAdvocate').checked,
+    niceUploaded:     document.getElementById('fNICE').checked,
+    bwcUploaded:      document.getElementById('fBWC').checked,
+    volumized:        document.getElementById('fVol').checked,
+  };
 
-        <br>
+  if (editIdx !== null) {
+    // Preserve fields not in the form
+    d.closed        = cases[editIdx].closed;
+    d.closedDate    = cases[editIdx].closedDate;
+    d.closureNotes  = cases[editIdx].closureNotes;
+    d.contactLog    = cases[editIdx].contactLog;
+    d.cl_leads      = cases[editIdx].cl_leads;
+    d.cl_suspects   = cases[editIdx].cl_suspects;
+    d.cl_court      = cases[editIdx].cl_court;
+    d.cl_evidence   = cases[editIdx].cl_evidence;
+    d.cl_tac        = cases[editIdx].cl_tac;
+    cases[editIdx]  = d;
+  } else {
+    d.closed      = false;
+    d.closedDate  = '';
+    d.closureNotes = '';
+    d.contactLog  = [];
+    d.cl_leads    = false;
+    d.cl_suspects = false;
+    d.cl_court    = false;
+    d.cl_evidence = false;
+    d.cl_tac      = false;
+    cases.push(d);
+  }
 
-        Last Contact:
-        <input type="date" value="${c.lastContact || ''}"
-          onchange="cases[${i}].lastContact=this.value">
+  closeAdd();
+  render();
+  await syncCases();
+}
 
-        KYIBRS Transmit:
-        <input type="date" value="${c.kyibrsTransmit || ''}"
-          onchange="cases[${i}].kyibrsTransmit=this.value">
+// ── CLOSURE ──────────────────────────────────────────────
+function openClosure(i) {
+  closureIdx = i;
+  const c           = cases[i];
+  const eligibility = canClose(c);
 
-        KYIBRS Accepted:
-        <input type="date" value="${c.kyibrsAccepted || ''}"
-          onchange="cases[${i}].kyibrsAccepted=this.value">
+  const items = [
+    { key: 'cl_leads',    label: 'All investigative leads exhausted' },
+    { key: 'cl_suspects', label: 'All suspects contacted (if possible)' },
+    { key: 'cl_court',    label: 'All court actions and e-dispositions completed' },
+    { key: 'cl_evidence', label: 'Evidence disposition completed' },
+    { key: 'cl_tac',      label: 'TAC verified — no active NCIC/LINK entries' },
+  ];
 
-        SAFE Lab:
-        <input type="date" value="${c.safeLab || ''}"
-          onchange="cases[${i}].safeLab=this.value">
-
-        <br>
-
-        <button onclick="cases.splice(${i},1);render()">Delete</button>
-
-        <button ${closeLocked ? "disabled" : ""}
-          onclick="cases[${i}].closed=true;render()">
-          Close
-        </button>
-
+  let html = items.map(item => `
+    <div class="dl-row">
+      <div class="dl-item">
+        <div class="dl-check ${c[item.key] ? 'checked' : ''}" id="chk_${item.key}" onclick="toggleClosureCheck('${item.key}')"></div>
+        <span class="dl-label">${item.label}</span>
       </div>
-    `;
+    </div>`).join('');
+
+  if (!eligibility.eligible) {
+    html += `<div style="background:rgba(231,76,60,0.1);border:1px solid rgba(231,76,60,0.3);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--red);margin-top:8px;">
+      <strong>Cannot close yet:</strong> ${eligibility.reason}
+    </div>`;
+  }
+
+  document.getElementById('closureChecklist').innerHTML = html;
+  document.getElementById('closureConfirmBtn').disabled    = !eligibility.eligible;
+  document.getElementById('closureConfirmBtn').style.opacity = eligibility.eligible ? '1' : '0.4';
+  document.getElementById('closureNotes').value = c.closureNotes || '';
+  document.getElementById('closureSheet').classList.add('open');
+}
+
+function toggleClosureCheck(key) {
+  if (closureIdx === null) return;
+  cases[closureIdx][key] = !cases[closureIdx][key];
+  const el = document.getElementById('chk_' + key);
+  if (el) el.classList.toggle('checked', cases[closureIdx][key]);
+  syncCases();
+}
+
+function closeClosureSheet() { document.getElementById('closureSheet').classList.remove('open'); }
+
+async function confirmClose() {
+  if (closureIdx === null) return;
+  if (!canClose(cases[closureIdx]).eligible) return;
+  cases[closureIdx].closed       = true;
+  cases[closureIdx].closedDate   = today();
+  cases[closureIdx].closureNotes = document.getElementById('closureNotes').value.trim();
+  closeClosureSheet();
+  render();
+  await syncCases();
+}
+
+async function reopenCase(i) {
+  cases[i].closed     = false;
+  cases[i].closedDate = '';
+  render();
+  await syncCases();
+}
+
+// ── DELETE ───────────────────────────────────────────────
+function promptDelete(i) {
+  const name = cases[i].caseNum || 'this case';
+  document.getElementById('confirmInner').innerHTML = `
+    <div class="sheet-handle"></div>
+    <h3>Delete Case?</h3>
+    <p>This will permanently remove case <strong>${name}</strong> and all its contact history. This cannot be undone.</p>
+    <div class="sheet-actions">
+      <button class="btn-cancel" onclick="closeConfirm()">Cancel</button>
+      <button class="btn-save" style="background:var(--red);" onclick="confirmDelete(${i})">Delete</button>
+    </div>`;
+  document.getElementById('confirmSheet').classList.add('open');
+}
+function closeConfirm() { document.getElementById('confirmSheet').classList.remove('open'); }
+async function confirmDelete(i) {
+  cases.splice(i, 1);
+  closeConfirm();
+  render();
+  await syncCases();
+  // Note: ContactLog entries for this case will remain in the sheet but are
+  // harmless orphans. You can clean them manually or we can add a cleanup later.
+}
+
+// ── TABS ─────────────────────────────────────────────────
+function switchTab(tab) {
+  ['Dash','Closed','Vacation'].forEach(t => {
+    document.getElementById('view' + t).classList.toggle('active',  t === tab);
+    document.getElementById('tab'  + t).classList.toggle('active',  t === tab);
   });
 }
 
+// ── INIT ─────────────────────────────────────────────────
+loadCases();
 </script>
-
 </body>
 </html>
