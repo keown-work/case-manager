@@ -342,12 +342,23 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 
 <script>
 // ── DATA ─────────────────────────────────────────────────
-let cases = JSON.parse(localStorage.getItem('ksp_cases_v1') || '[]');
+let cases = [];
 let editIdx = null;
 let contactIdx = null;
 let closureIdx = null;
 
-function save() { localStorage.setItem('ksp_cases_v1', JSON.stringify(cases)); render(); }
+function loadCases() {
+  google.script.run
+    .withSuccessHandler(function(data) {
+      cases = data || [];
+      render();
+    })
+    .getCases();
+}
+
+function save() {
+  render();
+}
 
 // ── DATE HELPERS ─────────────────────────────────────────
 function today() { return new Date().toISOString().split('T')[0]; }
@@ -652,7 +663,19 @@ function renderClosed() {
     </div>`;
   }).join('');
 }
-
+function reopenCase(i) {
+  google.script.run
+    .withSuccessHandler(function() {
+      google.script.run
+        .withSuccessHandler(function(data) {
+          cases = data || [];
+          render();
+        })
+        .getCases();
+    })
+    .reopenCase(cases[i].id);
+}
+  
 function renderVacation() {
   const start = document.getElementById('vacStart').value;
   const end = document.getElementById('vacEnd').value;
@@ -757,12 +780,25 @@ function saveContact() {
   const date = document.getElementById('contactDate').value;
   const method = document.getElementById('contactMethod').value;
   const notes = document.getElementById('contactNotes').value;
+
   if (!date) return;
-  if (!cases[contactIdx].contactLog) cases[contactIdx].contactLog = [];
-  cases[contactIdx].contactLog.push({ date, method, notes });
-  cases[contactIdx].lastContact = date;
-  closeContact();
-  save();
+
+  google.script.run
+    .withSuccessHandler(function() {
+      closeContact();
+
+      google.script.run
+        .withSuccessHandler(function(data) {
+          cases = data || [];
+          render();
+        })
+        .getCases();
+    })
+    .addContact(cases[contactIdx].id, {
+      date: date,
+      method: method,
+      notes: notes
+    });
 }
 
 // ── ADD / EDIT ───────────────────────────────────────────
@@ -850,40 +886,29 @@ function saveCase() {
   }
 
   const d = {
-    caseNum,
-    opened: document.getElementById('fOpened').value,
-    title,
-    classification: document.getElementById('fClass').value,
-    type: document.getElementById('fType').value,
-    victim: document.getElementById('fVictim').value.trim(),
-    lastContact: document.getElementById('fLastContact').value,
-    suspect: document.getElementById('fSuspect').value.trim(),
-    kyibrsTransmit: document.getElementById('fKyibrsTransmit').value,
-    kyibrsAccepted: document.getElementById('fKyibrsAccepted').value,
-    safeNotify: document.getElementById('fSafeNotify').value,
-    safeCustody: document.getElementById('fSafeCustody').value,
-    safeLab: document.getElementById('fSafeLab').value,
-    notes: document.getElementById('fNotes').value.trim(),
-    advocateConsulted: document.getElementById('fAdvocate').checked,
-    niceUploaded: document.getElementById('fNICE').checked,
-    bwcUploaded: document.getElementById('fBWC').checked,
-    volumized: document.getElementById('fVol').checked,
-  };
-
-  if (editIdx !== null) {
+      if (editIdx !== null) {
+    d.id = cases[editIdx].id;
     d.closed = cases[editIdx].closed;
     d.closedDate = cases[editIdx].closedDate;
     d.closureNotes = cases[editIdx].closureNotes;
     d.contactLog = cases[editIdx].contactLog;
-    cases[editIdx] = d;
   } else {
     d.closed = false;
     d.contactLog = [];
-    cases.push(d);
   }
 
-  closeAdd();
-  save();
+  google.script.run
+    .withSuccessHandler(function() {
+      closeAdd();
+
+      google.script.run
+        .withSuccessHandler(function(data) {
+          cases = data || [];
+          render();
+        })
+        .getCases();
+    })
+    .saveCase(d);
 }
 
 // ── CLOSURE ──────────────────────────────────────────────
@@ -937,19 +962,22 @@ function closeClosureSheet() { document.getElementById('closureSheet').classList
 
 function confirmClose() {
   if (closureIdx === null) return;
-  const eligibility = canClose(cases[closureIdx]);
-  if (!eligibility.eligible) return;
-  cases[closureIdx].closed = true;
-  cases[closureIdx].closedDate = today();
-  cases[closureIdx].closureNotes = document.getElementById('closureNotes').value.trim();
-  closeClosureSheet();
-  save();
-}
 
-function reopenCase(i) {
-  cases[i].closed = false;
-  cases[i].closedDate = null;
-  save();
+  google.script.run
+    .withSuccessHandler(function() {
+      closeClosureSheet();
+
+      google.script.run
+        .withSuccessHandler(function(data) {
+          cases = data || [];
+          render();
+        })
+        .getCases();
+    })
+    .closeCase(
+      cases[closureIdx].id,
+      document.getElementById('closureNotes').value.trim()
+    );
 }
 
 // ── DELETE ───────────────────────────────────────────────
@@ -966,7 +994,20 @@ function promptDelete(i) {
   document.getElementById('confirmSheet').classList.add('open');
 }
 function closeConfirm() { document.getElementById('confirmSheet').classList.remove('open'); }
-function confirmDelete(i) { cases.splice(i, 1); closeConfirm(); save(); }
+function confirmDelete(i) {
+  google.script.run
+    .withSuccessHandler(function() {
+      closeConfirm();
+
+      google.script.run
+        .withSuccessHandler(function(data) {
+          cases = data || [];
+          render();
+        })
+        .getCases();
+    })
+    .deleteCase(cases[i].id);
+}
 
 // ── TABS ─────────────────────────────────────────────────
 function switchTab(tab) {
@@ -977,7 +1018,7 @@ function switchTab(tab) {
 }
 
 // ── INIT ─────────────────────────────────────────────────
-render();
+loadCases();
 </script>
 </body>
 </html>
