@@ -392,11 +392,12 @@ body{font-family:'IBM Plex Sans',sans-serif;background:var(--bg);color:var(--tex
 </div>
 
 <script>
-// ── CONFIG ────────────────────────────────────────────────
-const API_URL = "https://script.google.com/macros/s/AKfycbz0HhtemXKpAoZm_otJc3moGcZyypOLRyf_eYMcJ3hCOcEgGAx906ze5EnbjSqbFxw/exec";
+// ── CONFIG — replace these two values when setting up a new detective's instance
+const SUPABASE_URL = "https://bohmuizsugfnlylncoaa.supabase.co";
+const SUPABASE_KEY = "sb_publishable_PM9z9NDiwN3yVR2VC7sErw_pouM7yzZ";
 
 // ── STATE ─────────────────────────────────────────────────
-let cases = [];
+let cases      = [];
 let editIdx    = null;
 let contactIdx = null;
 let closureIdx = null;
@@ -405,17 +406,137 @@ let closureIdx = null;
 function setSyncStatus(status, text) {
   const dot   = document.getElementById('syncDot');
   const label = document.getElementById('syncLabel');
-  dot.className = 'sync-dot ' + status;
+  dot.className   = 'sync-dot ' + status;
   label.textContent = text;
+}
+
+// ── SUPABASE HELPERS ──────────────────────────────────────
+const SB_HEADERS = {
+  'Content-Type':  'application/json',
+  'apikey':        SUPABASE_KEY,
+  'Authorization': 'Bearer ' + SUPABASE_KEY,
+  'Prefer':        'return=representation'
+};
+
+async function sbGet(table, params = '') {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
+    headers: { ...SB_HEADERS, 'Prefer': 'return=representation' }
+  });
+  if (!res.ok) throw new Error(`GET ${table} failed: ${res.status}`);
+  return res.json();
+}
+
+async function sbInsert(table, data) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+    method:  'POST',
+    headers: SB_HEADERS,
+    body:    JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error(`INSERT ${table} failed: ${res.status}`);
+  return res.json();
+}
+
+async function sbUpdate(table, id, data) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+    method:  'PATCH',
+    headers: SB_HEADERS,
+    body:    JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error(`UPDATE ${table} failed: ${res.status}`);
+  return res.json();
+}
+
+async function sbDelete(table, id) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+    method:  'DELETE',
+    headers: SB_HEADERS
+  });
+  if (!res.ok) throw new Error(`DELETE ${table} failed: ${res.status}`);
+}
+
+// ── MAP DB ROW → APP OBJECT ───────────────────────────────
+// Supabase uses snake_case; the app uses camelCase internally.
+function rowToCase(row) {
+  return {
+    id:                 row.id,
+    caseNum:            row.case_num            || '',
+    opened:             row.opened              || '',
+    title:              row.title               || '',
+    victim:             row.victim              || '',
+    suspect:            row.suspect             || '',
+    classification:     row.classification      || 'felony',
+    type:               row.type                || 'standard',
+    lastContact:        row.last_contact        || '',
+    kyibrsTransmit:     row.kyibrs_transmit     || '',
+    kyibrsAccepted:     row.kyibrs_accepted     || '',
+    safeNotify:         row.safe_notify         || '',
+    safeCustody:        row.safe_custody        || '',
+    safeLab:            row.safe_lab            || '',
+    notes:              row.notes               || '',
+    closed:             !!row.closed,
+    closedDate:         row.closed_date         || '',
+    closureNotes:       row.closure_notes       || '',
+    advocateConsulted:  !!row.advocate_consulted,
+    niceUploaded:       !!row.nice_uploaded,
+    bwcUploaded:        !!row.bwc_uploaded,
+    volumized:          !!row.volumized,
+    cl_leads:           !!row.cl_leads,
+    cl_suspects:        !!row.cl_suspects,
+    cl_court:           !!row.cl_court,
+    cl_evidence:        !!row.cl_evidence,
+    cl_tac:             !!row.cl_tac,
+    contactLog:         []
+  };
+}
+
+function caseToRow(c) {
+  return {
+    case_num:           c.caseNum           || '',
+    opened:             c.opened            || null,
+    title:              c.title             || '',
+    victim:             c.victim            || '',
+    suspect:            c.suspect           || '',
+    classification:     c.classification    || 'felony',
+    type:               c.type              || 'standard',
+    last_contact:       c.lastContact       || null,
+    kyibrs_transmit:    c.kyibrsTransmit    || null,
+    kyibrs_accepted:    c.kyibrsAccepted    || null,
+    safe_notify:        c.safeNotify        || null,
+    safe_custody:       c.safeCustody       || null,
+    safe_lab:           c.safeLab           || null,
+    notes:              c.notes             || '',
+    closed:             !!c.closed,
+    closed_date:        c.closedDate        || null,
+    closure_notes:      c.closureNotes      || '',
+    advocate_consulted: !!c.advocateConsulted,
+    nice_uploaded:      !!c.niceUploaded,
+    bwc_uploaded:       !!c.bwcUploaded,
+    volumized:          !!c.volumized,
+    cl_leads:           !!c.cl_leads,
+    cl_suspects:        !!c.cl_suspects,
+    cl_court:           !!c.cl_court,
+    cl_evidence:        !!c.cl_evidence,
+    cl_tac:             !!c.cl_tac
+  };
+}
+
+function rowToContact(row) {
+  return {
+    id:     row.id,
+    caseId: row.case_id,
+    date:   row.date   || '',
+    method: row.method || '',
+    notes:  row.notes  || ''
+  };
 }
 
 // ── API ───────────────────────────────────────────────────
 
 async function loadCases() {
-  const screen    = document.getElementById('loadingScreen');
-  const loadText  = document.getElementById('loadingText');
-  const loadErr   = document.getElementById('loadError');
-  const retryBtn  = document.getElementById('retryBtn');
+  const screen   = document.getElementById('loadingScreen');
+  const loadText = document.getElementById('loadingText');
+  const loadErr  = document.getElementById('loadError');
+  const retryBtn = document.getElementById('retryBtn');
 
   screen.classList.remove('hidden');
   loadText.style.display = 'block';
@@ -424,15 +545,22 @@ async function loadCases() {
   loadText.textContent   = 'LOADING CASES...';
 
   try {
-    // Apps Script doGet returns via redirect — use no-cors won't work for GET
-    // since we need to read the response body. Apps Script GET works fine with
-    // regular fetch as long as deployment is set to "Anyone".
-    const res  = await fetch(API_URL);
-    const data = await res.json();
+    const [caseRows, contactRows] = await Promise.all([
+      sbGet('cases',       'order=created_at.asc'),
+      sbGet('contact_log', 'order=date.asc')
+    ]);
 
-    if (!data.ok) throw new Error(data.error || 'Unknown error from server');
+    cases = caseRows.map(rowToCase);
 
-    cases = data.cases || [];
+    // Attach contact logs
+    const contactMap = {};
+    contactRows.forEach(row => {
+      const ct = rowToContact(row);
+      if (!contactMap[ct.caseId]) contactMap[ct.caseId] = [];
+      contactMap[ct.caseId].push(ct);
+    });
+    cases.forEach(c => { c.contactLog = contactMap[c.id] || []; });
+
     screen.classList.add('hidden');
     setSyncStatus('idle', 'Synced');
     render();
@@ -441,44 +569,39 @@ async function loadCases() {
     loadText.style.display = 'none';
     loadErr.style.display  = 'block';
     retryBtn.style.display = 'block';
-    loadErr.textContent    = 'Could not load cases from Google Sheets.\n\n' + err.message;
+    loadErr.textContent    = 'Could not load cases.\n\n' + err.message;
   }
 }
 
-// POST helper — Apps Script POST redirects, so we use no-cors.
-// We can't read the response body in no-cors mode, which is fine
-// for fire-and-forget saves. We optimistically update the UI.
-async function apiPost(payload) {
-  setSyncStatus('syncing', 'Saving...');
-  try {
-    await fetch(API_URL, {
-      method:  'POST',
-      mode:    'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(payload)
-    });
-    setSyncStatus('idle', 'Synced');
-  } catch (err) {
-    setSyncStatus('error', 'Sync error — check connection');
-    console.error('Sync error:', err);
-  }
-}
 
-async function syncCases() {
-  // Strip contactLog before sending — contacts have their own endpoint
-  const payload = cases.map(c => {
-    const { contactLog, ...rest } = c;
-    return rest;
-  });
-  await apiPost({ type: 'cases', cases: payload });
-}
 
 async function postContact(contact) {
-  await apiPost({ type: 'contact', contact });
+  setSyncStatus('syncing', 'Saving...');
+  try {
+    const row = await sbInsert('contact_log', {
+      id:      contact.id,
+      case_id: contact.caseId,
+      date:    contact.date,
+      method:  contact.method,
+      notes:   contact.notes  || ''
+    });
+    setSyncStatus('idle', 'Synced');
+    return row[0];
+  } catch (err) {
+    setSyncStatus('error', 'Sync error');
+    console.error(err);
+  }
 }
 
-async function deleteContactRemote(contactId, caseId) {
-  await apiPost({ type: 'deleteContact', contactId, caseId });
+async function deleteContactRemote(contactId) {
+  setSyncStatus('syncing', 'Saving...');
+  try {
+    await sbDelete('contact_log', contactId);
+    setSyncStatus('idle', 'Synced');
+  } catch (err) {
+    setSyncStatus('error', 'Sync error');
+    console.error(err);
+  }
 }
 
 // ── DATE HELPERS ─────────────────────────────────────────
@@ -844,10 +967,32 @@ function renderVacation() {
 }
 
 // ── TOGGLE FIELDS (checkboxes on cards) ──────────────────
-function toggleField(i, field) {
+async function toggleField(i, field) {
   cases[i][field] = !cases[i][field];
   render();
-  syncCases();
+  setSyncStatus('syncing', 'Saving...');
+  try {
+    await sbUpdate('cases', cases[i].id, { [snakeKey(field)]: cases[i][field] });
+    setSyncStatus('idle', 'Synced');
+  } catch (err) {
+    setSyncStatus('error', 'Sync error');
+    console.error(err);
+  }
+}
+
+function snakeKey(k) {
+  const map = {
+    advocateConsulted: 'advocate_consulted',
+    niceUploaded:      'nice_uploaded',
+    bwcUploaded:       'bwc_uploaded',
+    volumized:         'volumized',
+    cl_leads:          'cl_leads',
+    cl_suspects:       'cl_suspects',
+    cl_court:          'cl_court',
+    cl_evidence:       'cl_evidence',
+    cl_tac:            'cl_tac'
+  };
+  return map[k] || k;
 }
 
 // ── CONTACT LOG ──────────────────────────────────────────
@@ -883,16 +1028,23 @@ async function saveContact() {
   closeContact();
   render();
 
-  // Update lastContact in the cases sheet + add entry to ContactLog sheet
-  await syncCases();
-  await postContact(entry);
+  setSyncStatus('syncing', 'Saving...');
+  try {
+    await Promise.all([
+      sbUpdate('cases', c.id, { last_contact: date }),
+      postContact(entry)
+    ]);
+    setSyncStatus('idle', 'Synced');
+  } catch (err) {
+    setSyncStatus('error', 'Sync error');
+    console.error(err);
+  }
 }
 
 async function deleteContactEntry(caseId, contactId, caseIdx) {
   const c = cases[caseIdx];
   c.contactLog = (c.contactLog || []).filter(ct => ct.id !== contactId);
 
-  // Update lastContact to the most recent remaining entry
   if (c.contactLog.length) {
     c.lastContact = c.contactLog.reduce((latest, ct) =>
       ct.date > latest ? ct.date : latest, '');
@@ -901,8 +1053,17 @@ async function deleteContactEntry(caseId, contactId, caseIdx) {
   }
 
   render();
-  await syncCases();
-  await deleteContactRemote(contactId, caseId);
+  setSyncStatus('syncing', 'Saving...');
+  try {
+    await Promise.all([
+      sbUpdate('cases', caseId, { last_contact: c.lastContact || null }),
+      deleteContactRemote(contactId)
+    ]);
+    setSyncStatus('idle', 'Synced');
+  } catch (err) {
+    setSyncStatus('error', 'Sync error');
+    console.error(err);
+  }
 }
 
 // ── ADD / EDIT ───────────────────────────────────────────
@@ -1001,34 +1162,40 @@ async function saveCase() {
     volumized:        document.getElementById('fVol').checked,
   };
 
-  if (editIdx !== null) {
-    // Preserve fields not in the form
-    d.closed        = cases[editIdx].closed;
-    d.closedDate    = cases[editIdx].closedDate;
-    d.closureNotes  = cases[editIdx].closureNotes;
-    d.contactLog    = cases[editIdx].contactLog;
-    d.cl_leads      = cases[editIdx].cl_leads;
-    d.cl_suspects   = cases[editIdx].cl_suspects;
-    d.cl_court      = cases[editIdx].cl_court;
-    d.cl_evidence   = cases[editIdx].cl_evidence;
-    d.cl_tac        = cases[editIdx].cl_tac;
-    cases[editIdx]  = d;
-  } else {
-    d.closed      = false;
-    d.closedDate  = '';
-    d.closureNotes = '';
-    d.contactLog  = [];
-    d.cl_leads    = false;
-    d.cl_suspects = false;
-    d.cl_court    = false;
-    d.cl_evidence = false;
-    d.cl_tac      = false;
-    cases.push(d);
+  setSyncStatus('syncing', 'Saving...');
+  try {
+    if (editIdx !== null) {
+      d.closed       = cases[editIdx].closed;
+      d.closedDate   = cases[editIdx].closedDate;
+      d.closureNotes = cases[editIdx].closureNotes;
+      d.contactLog   = cases[editIdx].contactLog;
+      d.cl_leads     = cases[editIdx].cl_leads;
+      d.cl_suspects  = cases[editIdx].cl_suspects;
+      d.cl_court     = cases[editIdx].cl_court;
+      d.cl_evidence  = cases[editIdx].cl_evidence;
+      d.cl_tac       = cases[editIdx].cl_tac;
+      cases[editIdx] = d;
+      await sbUpdate('cases', d.id, caseToRow(d));
+    } else {
+      d.closed       = false;
+      d.closedDate   = '';
+      d.closureNotes = '';
+      d.contactLog   = [];
+      d.cl_leads     = false;
+      d.cl_suspects  = false;
+      d.cl_court     = false;
+      d.cl_evidence  = false;
+      d.cl_tac       = false;
+      await sbInsert('cases', { id: d.id, ...caseToRow(d) });
+      cases.push(d);
+    }
+    closeAdd();
+    render();
+    setSyncStatus('idle', 'Synced');
+  } catch (err) {
+    setSyncStatus('error', 'Sync error');
+    console.error(err);
   }
-
-  closeAdd();
-  render();
-  await syncCases();
 }
 
 // ── CLOSURE ──────────────────────────────────────────────
@@ -1060,18 +1227,25 @@ function openClosure(i) {
   }
 
   document.getElementById('closureChecklist').innerHTML = html;
-  document.getElementById('closureConfirmBtn').disabled    = !eligibility.eligible;
+  document.getElementById('closureConfirmBtn').disabled      = !eligibility.eligible;
   document.getElementById('closureConfirmBtn').style.opacity = eligibility.eligible ? '1' : '0.4';
   document.getElementById('closureNotes').value = c.closureNotes || '';
   document.getElementById('closureSheet').classList.add('open');
 }
 
-function toggleClosureCheck(key) {
+async function toggleClosureCheck(key) {
   if (closureIdx === null) return;
   cases[closureIdx][key] = !cases[closureIdx][key];
   const el = document.getElementById('chk_' + key);
   if (el) el.classList.toggle('checked', cases[closureIdx][key]);
-  syncCases();
+  setSyncStatus('syncing', 'Saving...');
+  try {
+    await sbUpdate('cases', cases[closureIdx].id, { [key]: cases[closureIdx][key] });
+    setSyncStatus('idle', 'Synced');
+  } catch (err) {
+    setSyncStatus('error', 'Sync error');
+    console.error(err);
+  }
 }
 
 function closeClosureSheet() { document.getElementById('closureSheet').classList.remove('open'); }
@@ -1079,19 +1253,38 @@ function closeClosureSheet() { document.getElementById('closureSheet').classList
 async function confirmClose() {
   if (closureIdx === null) return;
   if (!canClose(cases[closureIdx]).eligible) return;
-  cases[closureIdx].closed       = true;
-  cases[closureIdx].closedDate   = today();
-  cases[closureIdx].closureNotes = document.getElementById('closureNotes').value.trim();
+  const c = cases[closureIdx];
+  c.closed       = true;
+  c.closedDate   = today();
+  c.closureNotes = document.getElementById('closureNotes').value.trim();
   closeClosureSheet();
   render();
-  await syncCases();
+  setSyncStatus('syncing', 'Saving...');
+  try {
+    await sbUpdate('cases', c.id, {
+      closed:        true,
+      closed_date:   c.closedDate,
+      closure_notes: c.closureNotes
+    });
+    setSyncStatus('idle', 'Synced');
+  } catch (err) {
+    setSyncStatus('error', 'Sync error');
+    console.error(err);
+  }
 }
 
 async function reopenCase(i) {
   cases[i].closed     = false;
   cases[i].closedDate = '';
   render();
-  await syncCases();
+  setSyncStatus('syncing', 'Saving...');
+  try {
+    await sbUpdate('cases', cases[i].id, { closed: false, closed_date: null });
+    setSyncStatus('idle', 'Synced');
+  } catch (err) {
+    setSyncStatus('error', 'Sync error');
+    console.error(err);
+  }
 }
 
 // ── DELETE ───────────────────────────────────────────────
@@ -1100,7 +1293,7 @@ function promptDelete(i) {
   document.getElementById('confirmInner').innerHTML = `
     <div class="sheet-handle"></div>
     <h3>Delete Case?</h3>
-    <p>This will permanently remove case <strong>${name}</strong> and all its contact history. This cannot be undone.</p>
+    <p>This will permanently remove case <strong>${name}</strong> and all contact history. This cannot be undone.</p>
     <div class="sheet-actions">
       <button class="btn-cancel" onclick="closeConfirm()">Cancel</button>
       <button class="btn-save" style="background:var(--red);" onclick="confirmDelete(${i})">Delete</button>
@@ -1109,12 +1302,19 @@ function promptDelete(i) {
 }
 function closeConfirm() { document.getElementById('confirmSheet').classList.remove('open'); }
 async function confirmDelete(i) {
+  const id = cases[i].id;
   cases.splice(i, 1);
   closeConfirm();
   render();
-  await syncCases();
-  // Note: ContactLog entries for this case will remain in the sheet but are
-  // harmless orphans. You can clean them manually or we can add a cleanup later.
+  setSyncStatus('syncing', 'Saving...');
+  try {
+    // on delete cascade in DB handles contact_log rows automatically
+    await sbDelete('cases', id);
+    setSyncStatus('idle', 'Synced');
+  } catch (err) {
+    setSyncStatus('error', 'Sync error');
+    console.error(err);
+  }
 }
 
 // ── TABS ─────────────────────────────────────────────────
